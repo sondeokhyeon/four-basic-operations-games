@@ -176,15 +176,37 @@
     return null;
   }
   function genProblems(settings) {
+    // 같은 (op, a, b) 가 반복되지 않도록 가능한 한 중복 제거 + 최소한 연속 중복은 회피.
+    // - Phase 1: 미사용 && 직전과 다른 문제 (강한 조건)
+    // - Phase 2: 사용된 적 있어도 직전과는 다른 문제 (약한 조건)
+    // - Phase 3: 둘 다 만족 못해도 일단 뽑기 (조합 1개뿐인 경우 등 fallback)
     const out = [];
+    const seen = new Set();
+    const sigOf = (p) => `${p.op}|${p.a}|${p.b}`;
     for (let i = 0; i < settings.count; i++) {
-      let p = null;
-      // 한 op 가 현재 범위에서 불가능할 수 있으니 몇 번 재시도(다른 op 가 뽑힐 기회)
-      for (let attempt = 0; attempt < 8 && !p; attempt++) {
-        p = genProblem(settings.ops, settings.r1, settings.r2, settings.result);
+      const prevSig = out.length ? sigOf(out[out.length - 1]) : null;
+      let chosen = null;
+      // Phase 1: prefer unique & non-consecutive
+      for (let attempt = 0; attempt < 50 && !chosen; attempt++) {
+        const c = genProblem(settings.ops, settings.r1, settings.r2, settings.result);
+        if (!c) continue;
+        const sig = sigOf(c);
+        if (!seen.has(sig) && sig !== prevSig) chosen = c;
       }
-      if (!p) return null;
-      out.push(p);
+      // Phase 2: allow repeat but not consecutive
+      for (let attempt = 0; attempt < 30 && !chosen; attempt++) {
+        const c = genProblem(settings.ops, settings.r1, settings.r2, settings.result);
+        if (!c) continue;
+        if (sigOf(c) !== prevSig) chosen = c;
+      }
+      // Phase 3: anything genProblem produces
+      for (let attempt = 0; attempt < 8 && !chosen; attempt++) {
+        const c = genProblem(settings.ops, settings.r1, settings.r2, settings.result);
+        if (c) chosen = c;
+      }
+      if (!chosen) return null;
+      out.push(chosen);
+      seen.add(sigOf(chosen));
     }
     return out;
   }
