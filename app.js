@@ -46,6 +46,7 @@
     answers: [],
     startedAt: 0,
     currentId: null,
+    currentEntry: null,
     cal: { year: 0, month: 0, selectedDate: null }, // month: 0-11
     historyFilterDate: null,
   };
@@ -372,7 +373,7 @@
     const graded = state.problems.map((p, i) => {
       const userRaw = String(state.answers[i] ?? '').trim();
       const correct = gradeOne(p, userRaw);
-      return { ...p, user: userRaw, originalAnswer: userRaw, correct, fixed: false };
+      return { ...p, user: userRaw, originalAnswer: userRaw, correct, fixed: false, edited: false };
     });
     const score = graded.filter((g) => g.correct).length;
     const durationSec = Math.max(0, Math.round((Date.now() - state.startedAt) / 1000));
@@ -389,10 +390,12 @@
       count: state.settings.count,
       score,
       durationSec,
+      regraded: false,
       problems: graded,
     };
     saveResult(entry);
     state.currentId = entry.id;
+    state.currentEntry = entry;
     renderResult(entry);
     showScreen('result');
     if (score >= Math.ceil(graded.length * 0.7)) launchConfetti();
@@ -404,7 +407,9 @@
   }
 
   function renderResult(entry) {
+    state.currentEntry = entry;
     const editable = isTodayEntry(entry);
+    const canRegrade = editable && !entry.regraded && entry.problems.some((p) => !p.correct && !p.fixed);
     $('#scoreTitle').textContent = `${entry.count}문제 중 ${entry.score}개 맞았어요! 🎉`;
     const fixedCount = entry.problems.filter((p) => p.fixed).length;
     const sub = [
@@ -414,7 +419,8 @@
     if (entry.result) sub.push(`결과 ${fmtRange(entry.result)}`);
     if (fixedCount > 0) sub.push(`⭐ 수정해서 맞춘 ${fixedCount}개`);
     $('#scoreSub').textContent = sub.join(' · ');
-    $('#editableNote').hidden = !editable;
+    $('#editableNote').hidden = !canRegrade;
+    $('#regradeRow').hidden = !canRegrade;
 
     const list = $('#resultList');
     list.innerHTML = '';
@@ -424,14 +430,13 @@
       const stateClass = p.fixed ? 'fixed' : (p.correct ? 'correct' : 'wrong');
       const badge = p.fixed ? '⭐' : (p.correct ? '✅' : '❌');
       li.className = 'problem ' + stateClass;
-      // "처음 답 / 정답" 칩은 의미가 있을 때만 노출
-      // - 처음부터 맞춘 문제: 숨김 (상시)
-      // - 수정해서 맞춘 문제: 항상 노출
-      // - 처음에 틀렸고 수정 흔적이 있는 문제: 노출
-      // - 처음에 틀렸고 수정 흔적 없음 (채점 직후 등): 숨김
+      // "처음 답 / 정답" 칩 노출 규칙: 재채점 후 수정한 문항(맞췄든 못 맞췄든)에만
+      // - 처음부터 맞춘 문제: 숨김
+      // - 수정해서 맞춘(fixed) 문제: 노출
+      // - 수정했지만 여전히 틀린 문제(edited): 노출
+      // - 수정 안 한 오답: 숨김
+      const showPills = p.fixed || (!p.correct && p.edited === true);
       const original = (p.originalAnswer ?? '');
-      const wasEdited = String(p.user ?? '') !== String(original);
-      const showPills = p.fixed || (!p.correct && wasEdited);
       const originalShown = (original === '' || original == null) ? '?' : original;
       li.innerHTML = `
         <span class="num">${i + 1}.</span>
@@ -445,8 +450,8 @@
       `;
       const input = li.querySelector('input');
       input.value = p.user || '';
-      // 수정 가능 조건: 오늘 회차 + (처음에 틀림 && 아직 수정해서 맞추지 않음)
-      const canEdit = editable && !p.correct && !p.fixed;
+      // 수정 가능 조건: 오늘 회차 + 재채점 전 + (처음에 틀림 && 아직 수정해서 맞추지 않음)
+      const canEdit = editable && !entry.regraded && !p.correct && !p.fixed;
       input.disabled = !canEdit;
       if (!canEdit) input.readOnly = true;
       if (canEdit) {
@@ -456,37 +461,34 @@
     });
   }
 
+  // 입력 이벤트: 즉시 채점하지 않고 사용자가 적은 값만 임시 보존(저장은 재채점 시)
   function onResultInput(entry, i, ev) {
     const sanitized = ev.target.value.replace(/[^\d-]/g, '');
     if (sanitized !== ev.target.value) ev.target.value = sanitized;
-    const raw = ev.target.value;
-    const problem = entry.problems[i];
-    problem.user = raw.trim();
-    // 수정 흔적 즉시 반영: 처음 답과 다르면 칩 노출, 같으면 숨김
-    const li = ev.target.closest('li');
-    const pill = li && li.querySelector('[data-pill]');
-    if (pill) {
-      const editedNow = String(problem.user) !== String(problem.originalAnswer ?? '');
-      const shouldShow = problem.fixed || (!problem.correct && editedNow);
-      pill.hidden = !shouldShow;
-    }
-    if (!problem.fixed && gradeOne(problem, raw)) {
-      // 점수는 그대로 유지(최초 채점값). fixed 만 set.
-      problem.fixed = true;
-      entry.updatedAt = new Date().toISOString();
-      saveResult(entry);
-      renderResult(entry); // 박스 색상/배지/잠금 갱신
-      // 포커스를 다음 미해결 오답으로 이동
-      const next = entry.problems.findIndex((p, idx) => idx > i && !p.correct && !p.fixed);
-      if (next >= 0) {
-        const sel = $(`#resultList li:nth-child(${next + 1}) input`);
-        if (sel && !sel.disabled) sel.focus();
+    entry.problems[i].user = ev.target.value.trim();
+  }
+
+  function regradeEntry(entry) {
+    if (!entry || entry.regraded) return;
+    for (const p of entry.problems) {
+      if (p.correct || p.fixed) continue; // 처음 정답/이미 fixed 는 스킵
+      const original = String(p.originalAnswer ?? '');
+      const current = String(p.user ?? '');
+      if (current !== original && current !== '') {
+        p.edited = true;
+        if (gradeOne(p, current)) {
+          p.fixed = true; // correct 는 그대로 false 유지 (최초 점수 보존)
+        }
+      } else {
+        p.edited = false;
       }
-    } else {
-      // 즉시 저장 (틀린 채로 user 만 갱신)
-      entry.updatedAt = new Date().toISOString();
-      saveResult(entry);
     }
+    entry.regraded = true;
+    entry.updatedAt = new Date().toISOString();
+    saveResult(entry);
+    const fixedNow = entry.problems.filter((p) => p.fixed).length;
+    if (fixedNow > 0) toast(`수정해서 맞춘 문제 ${fixedNow}개! ⭐`);
+    renderResult(entry);
   }
 
   // ===== Confetti =====
@@ -619,6 +621,7 @@
       `;
       li.addEventListener('click', () => {
         state.currentId = e.id;
+        state.currentEntry = e;
         renderResult(e);
         showScreen('result');
       });
@@ -630,6 +633,7 @@
   function bindGlobal() {
     $('#submitBtn').addEventListener('click', submitQuiz);
     $('#submitBtn2').addEventListener('click', submitQuiz);
+    $('#regradeBtn').addEventListener('click', () => regradeEntry(state.currentEntry));
     $('#quizBackBtn').addEventListener('click', () => {
       if (confirm('퀴즈를 그만둘까요? 입력한 답이 사라져요.')) showScreen('home');
     });
