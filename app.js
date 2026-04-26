@@ -4,8 +4,16 @@
 
   // ===== 상수 / 유틸 =====
   const STORAGE_KEY = 'math-practice-history-v1';
+  const SETTINGS_KEY = 'math-practice-settings-v1';
   const HISTORY_LIMIT = 200;
   const OP_LABEL = { '+': '+', '-': '−', '*': '×', '/': '÷' };
+  const DEFAULT_SETTINGS = {
+    ops: ['+'],
+    r1: { min: 0, max: 10 },
+    r2: { min: 0, max: 10 },
+    count: 10,
+    result: { enabled: false, min: 0, max: 100 },
+  };
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -14,10 +22,26 @@
   const localDateKey = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
   const todayKey = () => localDateKey(new Date());
   const newId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const fmtRange = (r) => {
+    if (r == null) return '?';
+    if (typeof r === 'number') return `0~${r}`;
+    return `${r.min}~${r.max}`;
+  };
+
+  // 깊은 병합(딱 1단계만): 누락된 키만 기본값으로 채워주는 용도
+  function mergeDefaults(target, defaults) {
+    const out = { ...defaults, ...target };
+    for (const k of Object.keys(defaults)) {
+      if (defaults[k] && typeof defaults[k] === 'object' && !Array.isArray(defaults[k])) {
+        out[k] = { ...defaults[k], ...(target?.[k] || {}) };
+      }
+    }
+    return out;
+  }
 
   // ===== 상태 =====
   const state = {
-    settings: { ops: ['+'], r1: 10, r2: 10, count: 10 },
+    settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
     problems: [],
     answers: [],
     startedAt: 0,
@@ -25,6 +49,24 @@
     cal: { year: 0, month: 0, selectedDate: null }, // month: 0-11
     historyFilterDate: null,
   };
+
+  // ===== Settings persistence =====
+  function loadSettings() {
+    try {
+      const raw = localStorage.getItem(SETTINGS_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || typeof obj !== 'object') return null;
+      // ops 가 배열 + 1개 이상이어야
+      if (!Array.isArray(obj.ops) || obj.ops.length === 0) obj.ops = DEFAULT_SETTINGS.ops.slice();
+      return mergeDefaults(obj, DEFAULT_SETTINGS);
+    } catch {
+      return null;
+    }
+  }
+  function persistSettings() {
+    try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings)); } catch {}
+  }
 
   // ===== localStorage =====
   function loadHistory() {
@@ -68,37 +110,66 @@
   }
 
   // ===== 문제 생성 =====
-  function genProblem(ops, r1max, r2max) {
+  // r1, r2: { min, max } 객체. result: { enabled, min, max } (선택)
+  function genProblem(ops, r1, r2, result) {
     const op = ops[randInt(0, ops.length - 1)];
+    const inResult = (v) => !result.enabled || (v >= result.min && v <= result.max);
+
     if (op === '+') {
-      const a = randInt(0, r1max);
-      const b = randInt(0, r2max);
-      return { a, op, b, answer: a + b };
-    }
-    if (op === '-') {
-      // a 는 [0, r1max], b 는 [0, min(r2max, a)] — 항상 0 <= b <= a, b <= r2max
-      const a = randInt(0, r1max);
-      const b = randInt(0, Math.min(r2max, a));
-      return { a, op, b, answer: a - b };
+      for (let i = 0; i < 200; i++) {
+        const a = randInt(r1.min, r1.max);
+        const b = randInt(r2.min, r2.max);
+        const ans = a + b;
+        if (inResult(ans)) return { a, op, b, answer: ans };
+      }
+      return null;
     }
     if (op === '*') {
-      const a = randInt(0, r1max);
-      const b = randInt(0, r2max);
-      return { a, op, b, answer: a * b };
+      for (let i = 0; i < 200; i++) {
+        const a = randInt(r1.min, r1.max);
+        const b = randInt(r2.min, r2.max);
+        const ans = a * b;
+        if (inResult(ans)) return { a, op, b, answer: ans };
+      }
+      return null;
+    }
+    if (op === '-') {
+      // a - b >= 0 보장. result 옵션 켜진 경우 추가 제약.
+      for (let i = 0; i < 300; i++) {
+        const a = randInt(r1.min, r1.max);
+        let bLo = r2.min;
+        let bHi = Math.min(r2.max, a);            // a - b >= 0
+        if (result.enabled) {
+          bLo = Math.max(bLo, a - result.max);    // a - b <= result.max  =>  b >= a - result.max
+          bHi = Math.min(bHi, a - result.min);    // a - b >= result.min  =>  b <= a - result.min
+        }
+        if (bLo <= bHi) {
+          const b = randInt(bLo, bHi);
+          return { a, op, b, answer: a - b };
+        }
+      }
+      return null;
     }
     if (op === '/') {
-      // divisor: 1..r2max, quotient: 0..floor(r1max / divisor)
-      for (let attempt = 0; attempt < 80; attempt++) {
-        const divisor = randInt(1, Math.max(1, r2max));
-        const qMax = Math.floor(r1max / divisor);
-        if (qMax < 0) continue;
-        const quotient = randInt(0, qMax);
+      // divisor 는 양수만 (0 제외). dividend = divisor * quotient, 정수 결과.
+      const dvLo = Math.max(1, r2.min);
+      const dvHi = r2.max;
+      if (dvHi < dvLo) return null;
+      for (let attempt = 0; attempt < 300; attempt++) {
+        const divisor = randInt(dvLo, dvHi);
+        let qLo = Math.ceil(r1.min / divisor);
+        let qHi = Math.floor(r1.max / divisor);
+        if (result.enabled) {
+          qLo = Math.max(qLo, result.min);
+          qHi = Math.min(qHi, result.max);
+        }
+        if (qLo > qHi) continue;
+        const quotient = randInt(qLo, qHi);
         const dividend = divisor * quotient;
-        if (dividend <= r1max) {
+        if (dividend >= r1.min && dividend <= r1.max) {
           return { a: dividend, op, b: divisor, answer: quotient };
         }
       }
-      // 비현실적 조합 — 호출 측에서 처리
       return null;
     }
     return null;
@@ -106,7 +177,11 @@
   function genProblems(settings) {
     const out = [];
     for (let i = 0; i < settings.count; i++) {
-      const p = genProblem(settings.ops, settings.r1, settings.r2);
+      let p = null;
+      // 한 op 가 현재 범위에서 불가능할 수 있으니 몇 번 재시도(다른 op 가 뽑힐 기회)
+      for (let attempt = 0; attempt < 8 && !p; attempt++) {
+        p = genProblem(settings.ops, settings.r1, settings.r2, settings.result);
+      }
       if (!p) return null;
       out.push(p);
     }
@@ -137,6 +212,43 @@
   }
 
   // ===== 홈 화면 =====
+  function applySettingsToUI() {
+    const s = state.settings;
+    $$('#opGrid .op-card').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(s.ops.includes(btn.dataset.op)));
+    });
+    $('#r1Min').value = String(s.r1.min);
+    $('#r1Max').value = String(s.r1.max);
+    $('#r2Min').value = String(s.r2.min);
+    $('#r2Max').value = String(s.r2.max);
+    $$('#countRow .chip').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(Number(btn.dataset.c) === s.count));
+    });
+    $('#resultEnabled').checked = !!s.result.enabled;
+    $('#resultRangeRow').hidden = !s.result.enabled;
+    $('#resultMin').value = String(s.result.min);
+    $('#resultMax').value = String(s.result.max);
+  }
+
+  function bindRangeInput(selector, setter) {
+    const el = $(selector);
+    el.addEventListener('input', () => {
+      const v = parseInt(el.value, 10);
+      if (Number.isFinite(v)) {
+        setter(v);
+        persistSettings();
+      }
+    });
+    el.addEventListener('blur', () => {
+      // 빈 값/유효하지 않은 값은 0으로 복구
+      if (el.value === '' || !Number.isFinite(parseInt(el.value, 10))) {
+        el.value = '0';
+        setter(0);
+        persistSettings();
+      }
+    });
+  }
+
   function setupHome() {
     // 연산 다중 선택
     $$('#opGrid .op-card').forEach((btn) => {
@@ -153,32 +265,61 @@
           state.settings.ops.push(op);
         }
         btn.setAttribute('aria-pressed', String(state.settings.ops.includes(op)));
+        persistSettings();
       });
     });
 
-    // 단일 선택 칩 그룹
-    function bindSingle(rowSel, dataAttr, fieldKey, parseFn = Number) {
-      $$(`${rowSel} .chip`).forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const v = parseFn(btn.dataset[dataAttr]);
-          state.settings[fieldKey] = v;
-          $$(`${rowSel} .chip`).forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
-        });
+    // 범위 직접 입력
+    bindRangeInput('#r1Min', (v) => { state.settings.r1.min = v; });
+    bindRangeInput('#r1Max', (v) => { state.settings.r1.max = v; });
+    bindRangeInput('#r2Min', (v) => { state.settings.r2.min = v; });
+    bindRangeInput('#r2Max', (v) => { state.settings.r2.max = v; });
+    bindRangeInput('#resultMin', (v) => { state.settings.result.min = v; });
+    bindRangeInput('#resultMax', (v) => { state.settings.result.max = v; });
+
+    // 결과값 범위 토글
+    $('#resultEnabled').addEventListener('change', (e) => {
+      state.settings.result.enabled = e.target.checked;
+      $('#resultRangeRow').hidden = !e.target.checked;
+      persistSettings();
+    });
+
+    // 문제 수 칩
+    $$('#countRow .chip').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        state.settings.count = Number(btn.dataset.c);
+        $$('#countRow .chip').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+        persistSettings();
       });
-    }
-    bindSingle('#r1Row', 'r', 'r1');
-    bindSingle('#r2Row', 'r', 'r2');
-    bindSingle('#countRow', 'c', 'count');
+    });
 
     $('#startBtn').addEventListener('click', startQuiz);
     $('#goHistoryBtn').addEventListener('click', openHistory);
   }
 
-  function startQuiz() {
-    if (state.settings.ops.length === 0) {
-      toast('연산을 한 개 이상 골라주세요');
-      return;
+  function validateSettings(s) {
+    if (!Array.isArray(s.ops) || s.ops.length === 0) return '연산을 한 개 이상 골라주세요';
+    if (!Number.isFinite(s.r1.min) || !Number.isFinite(s.r1.max) || s.r1.min > s.r1.max) {
+      return '첫째 수 범위가 올바르지 않아요 (최소 ≤ 최대)';
     }
+    if (!Number.isFinite(s.r2.min) || !Number.isFinite(s.r2.max) || s.r2.min > s.r2.max) {
+      return '둘째 수 범위가 올바르지 않아요 (최소 ≤ 최대)';
+    }
+    if (s.ops.includes('/') && s.r2.max < 1) {
+      return '나누기는 둘째 수 최대값이 1 이상이어야 해요';
+    }
+    if (s.result.enabled) {
+      if (!Number.isFinite(s.result.min) || !Number.isFinite(s.result.max) || s.result.min > s.result.max) {
+        return '결과값 범위가 올바르지 않아요 (최소 ≤ 최대)';
+      }
+    }
+    return null;
+  }
+
+  function startQuiz() {
+    const err = validateSettings(state.settings);
+    if (err) { toast(err); return; }
+    persistSettings();
     const problems = genProblems(state.settings);
     if (!problems) {
       toast('이 설정으로 문제를 만들기 어려워요. 범위를 바꿔보세요 🙏');
@@ -240,8 +381,11 @@
       date: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       ops: state.settings.ops.slice(),
-      r1: state.settings.r1,
-      r2: state.settings.r2,
+      r1: { min: state.settings.r1.min, max: state.settings.r1.max },
+      r2: { min: state.settings.r2.min, max: state.settings.r2.max },
+      result: state.settings.result.enabled
+        ? { min: state.settings.result.min, max: state.settings.result.max }
+        : null,
       count: state.settings.count,
       score,
       durationSec,
@@ -265,8 +409,9 @@
     const fixedCount = entry.problems.filter((p) => p.fixed).length;
     const sub = [
       `걸린 시간 ${Math.floor(entry.durationSec / 60)}분 ${entry.durationSec % 60}초`,
-      `${entry.ops.map((o) => OP_LABEL[o]).join(' ')} · 0~${entry.r1} ${entry.ops.length === 1 ? OP_LABEL[entry.ops[0]] : '·'} 0~${entry.r2}`,
+      `${entry.ops.map((o) => OP_LABEL[o]).join(' ')} · ${fmtRange(entry.r1)} & ${fmtRange(entry.r2)}`,
     ];
+    if (entry.result) sub.push(`결과 ${fmtRange(entry.result)}`);
     if (fixedCount > 0) sub.push(`⭐ 고친 정답 ${fixedCount}개`);
     $('#scoreSub').textContent = sub.join(' · ');
     $('#editableNote').hidden = !editable;
@@ -414,7 +559,8 @@
   }
   function summarizeEntry(e) {
     const ops = e.ops.map((o) => OP_LABEL[o]).join('');
-    return `${ops} · 0~${e.r1} & 0~${e.r2} · ${e.count}문제`;
+    const tail = e.result ? ` · 결과 ${fmtRange(e.result)}` : '';
+    return `${ops} · ${fmtRange(e.r1)} & ${fmtRange(e.r2)} · ${e.count}문제${tail}`;
   }
 
   function renderHistoryList(history) {
@@ -504,7 +650,10 @@
 
   // ===== Init =====
   document.addEventListener('DOMContentLoaded', () => {
+    const saved = loadSettings();
+    if (saved) state.settings = saved;
     setupHome();
+    applySettingsToUI();
     bindGlobal();
   });
 })();

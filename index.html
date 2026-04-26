@@ -45,20 +45,22 @@
       </div>
 
       <div class="card">
-        <h2 class="card-title">2. 첫째 수의 크기</h2>
-        <div class="chip-row" id="r1Row" role="radiogroup" aria-label="첫째 수 범위">
-          <button type="button" class="chip" data-r="10" aria-pressed="true">0~10</button>
-          <button type="button" class="chip" data-r="100" aria-pressed="false">0~100</button>
-          <button type="button" class="chip" data-r="1000" aria-pressed="false">0~1000</button>
+        <h2 class="card-title">2. 첫째 수의 범위</h2>
+        <p class="hint">출제할 첫째 수의 최소~최대값을 직접 입력해요</p>
+        <div class="range-row">
+          <input type="number" id="r1Min" class="range-input" inputmode="numeric" step="1" value="0" aria-label="첫째 수 최소값" />
+          <span class="range-tilde">~</span>
+          <input type="number" id="r1Max" class="range-input" inputmode="numeric" step="1" value="10" aria-label="첫째 수 최대값" />
         </div>
       </div>
 
       <div class="card">
-        <h2 class="card-title">3. 둘째 수의 크기</h2>
-        <div class="chip-row" id="r2Row" role="radiogroup" aria-label="둘째 수 범위">
-          <button type="button" class="chip" data-r="10" aria-pressed="true">0~10</button>
-          <button type="button" class="chip" data-r="100" aria-pressed="false">0~100</button>
-          <button type="button" class="chip" data-r="1000" aria-pressed="false">0~1000</button>
+        <h2 class="card-title">3. 둘째 수의 범위</h2>
+        <p class="hint">출제할 둘째 수의 최소~최대값을 직접 입력해요</p>
+        <div class="range-row">
+          <input type="number" id="r2Min" class="range-input" inputmode="numeric" step="1" value="0" aria-label="둘째 수 최소값" />
+          <span class="range-tilde">~</span>
+          <input type="number" id="r2Max" class="range-input" inputmode="numeric" step="1" value="10" aria-label="둘째 수 최대값" />
         </div>
       </div>
 
@@ -71,6 +73,19 @@
           <button type="button" class="chip" data-c="40" aria-pressed="false">40</button>
           <button type="button" class="chip" data-c="50" aria-pressed="false">50</button>
           <button type="button" class="chip" data-c="60" aria-pressed="false">60</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">5. 결과값 범위 <span class="optional-tag">선택</span></h2>
+        <label class="toggle-row" for="resultEnabled">
+          <input type="checkbox" id="resultEnabled" />
+          <span>결과값 범위 제한하기</span>
+        </label>
+        <div class="range-row" id="resultRangeRow" hidden>
+          <input type="number" id="resultMin" class="range-input" inputmode="numeric" step="1" value="0" aria-label="결과값 최소값" />
+          <span class="range-tilde">~</span>
+          <input type="number" id="resultMax" class="range-input" inputmode="numeric" step="1" value="100" aria-label="결과값 최대값" />
         </div>
       </div>
 
