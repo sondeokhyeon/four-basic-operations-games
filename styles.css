@@ -320,12 +320,12 @@ body[data-screen="history"] #history { display: block; }
   border: 2px solid #BDEAD6;
 }
 .problem.wrong {
-  background: #FFF1EA;
-  border: 2px solid #FFD7C5;
+  background: #FFE5E2;
+  border: 2px solid #FF9580;
 }
 .problem.fixed {
-  background: #FFF8DC;
-  border: 2px solid #FFE08A;
+  background: #FFF6CC;
+  border: 2px solid #FFD84D;
 }
 .problem .badge {
   font-size: 22px;
@@ -360,12 +360,14 @@ body[data-screen="history"] #history { display: block; }
   line-height: 1;
 }
 .ans-mine {
-  background: #FFEDE3;
+  background: #FFFFFF;
   color: #B85A36;
+  border: 1px solid #FFC8B8;
 }
 .ans-correct {
   background: #E6F7EF;
   color: #2F8E68;
+  border: 1px solid #BDEAD6;
 }
 
 /* ===== Result header ===== */

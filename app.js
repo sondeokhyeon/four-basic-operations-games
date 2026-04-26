@@ -370,9 +370,9 @@
       if (!proceed) return;
     }
     const graded = state.problems.map((p, i) => {
-      const userRaw = state.answers[i] ?? '';
+      const userRaw = String(state.answers[i] ?? '').trim();
       const correct = gradeOne(p, userRaw);
-      return { ...p, user: String(userRaw).trim(), correct, fixed: false };
+      return { ...p, user: userRaw, originalAnswer: userRaw, correct, fixed: false };
     });
     const score = graded.filter((g) => g.correct).length;
     const durationSec = Math.max(0, Math.round((Date.now() - state.startedAt) / 1000));
@@ -412,7 +412,7 @@
       `${entry.ops.map((o) => OP_LABEL[o]).join(' ')} · ${fmtRange(entry.r1)} & ${fmtRange(entry.r2)}`,
     ];
     if (entry.result) sub.push(`결과 ${fmtRange(entry.result)}`);
-    if (fixedCount > 0) sub.push(`⭐ 고친 정답 ${fixedCount}개`);
+    if (fixedCount > 0) sub.push(`⭐ 수정해서 맞춘 ${fixedCount}개`);
     $('#scoreSub').textContent = sub.join(' · ');
     $('#editableNote').hidden = !editable;
 
@@ -420,28 +420,35 @@
     list.innerHTML = '';
     entry.problems.forEach((p, i) => {
       const li = document.createElement('li');
-      li.className = 'problem ' + (p.correct ? (p.fixed ? 'fixed' : 'correct') : 'wrong');
-      const badge = p.correct ? (p.fixed ? '⭐' : '✅') : '🐤';
-      const userShown = (p.user === '' || p.user == null) ? '?' : p.user;
-      const showAnswer = !p.correct
-        ? `<div class="answer-shown">
-             <span class="ans-pill ans-mine"><span class="ans-label">내 답</span><b>${userShown}</b></span>
-             <span class="ans-pill ans-correct"><span class="ans-label">정답</span><b>${p.answer}</b></span>
-           </div>`
-        : '';
+      // 우선순위: fixed > correct > wrong
+      const stateClass = p.fixed ? 'fixed' : (p.correct ? 'correct' : 'wrong');
+      const badge = p.fixed ? '⭐' : (p.correct ? '✅' : '❌');
+      li.className = 'problem ' + stateClass;
+      // "처음 답 / 정답" 칩은 의미가 있을 때만 노출
+      // - 처음부터 맞춘 문제: 숨김 (상시)
+      // - 수정해서 맞춘 문제: 항상 노출
+      // - 처음에 틀렸고 수정 흔적이 있는 문제: 노출
+      // - 처음에 틀렸고 수정 흔적 없음 (채점 직후 등): 숨김
+      const original = (p.originalAnswer ?? '');
+      const wasEdited = String(p.user ?? '') !== String(original);
+      const showPills = p.fixed || (!p.correct && wasEdited);
+      const originalShown = (original === '' || original == null) ? '?' : original;
       li.innerHTML = `
         <span class="num">${i + 1}.</span>
         <span class="expr">${p.a} ${OP_LABEL[p.op]} ${p.b} =</span>
         <input type="text" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off" data-i="${i}">
         <span class="badge">${badge}</span>
-        ${showAnswer}
+        <div class="answer-shown" data-pill ${showPills ? '' : 'hidden'}>
+          <span class="ans-pill ans-mine"><span class="ans-label">처음 답</span><b>${originalShown}</b></span>
+          <span class="ans-pill ans-correct"><span class="ans-label">정답</span><b>${p.answer}</b></span>
+        </div>
       `;
       const input = li.querySelector('input');
       input.value = p.user || '';
-      // 수정 가능 조건: 오늘 회차 + 오답
-      const canEdit = editable && !p.correct;
+      // 수정 가능 조건: 오늘 회차 + (처음에 틀림 && 아직 수정해서 맞추지 않음)
+      const canEdit = editable && !p.correct && !p.fixed;
       input.disabled = !canEdit;
-      if (p.correct) input.readOnly = true;
+      if (!canEdit) input.readOnly = true;
       if (canEdit) {
         input.addEventListener('input', (ev) => onResultInput(entry, i, ev));
       }
@@ -453,22 +460,30 @@
     const sanitized = ev.target.value.replace(/[^\d-]/g, '');
     if (sanitized !== ev.target.value) ev.target.value = sanitized;
     const raw = ev.target.value;
-    entry.problems[i].user = raw.trim();
-    if (gradeOne(entry.problems[i], raw)) {
-      entry.problems[i].correct = true;
-      entry.problems[i].fixed = true;
-      entry.score = entry.problems.filter((p) => p.correct).length;
+    const problem = entry.problems[i];
+    problem.user = raw.trim();
+    // 수정 흔적 즉시 반영: 처음 답과 다르면 칩 노출, 같으면 숨김
+    const li = ev.target.closest('li');
+    const pill = li && li.querySelector('[data-pill]');
+    if (pill) {
+      const editedNow = String(problem.user) !== String(problem.originalAnswer ?? '');
+      const shouldShow = problem.fixed || (!problem.correct && editedNow);
+      pill.hidden = !shouldShow;
+    }
+    if (!problem.fixed && gradeOne(problem, raw)) {
+      // 점수는 그대로 유지(최초 채점값). fixed 만 set.
+      problem.fixed = true;
       entry.updatedAt = new Date().toISOString();
       saveResult(entry);
-      renderResult(entry); // 카드 색상/배지 갱신, 수정한 입력은 잠김
-      // 포커스를 다음 오답으로 이동
-      const next = entry.problems.findIndex((p, idx) => idx > i && !p.correct);
+      renderResult(entry); // 박스 색상/배지/잠금 갱신
+      // 포커스를 다음 미해결 오답으로 이동
+      const next = entry.problems.findIndex((p, idx) => idx > i && !p.correct && !p.fixed);
       if (next >= 0) {
         const sel = $(`#resultList li:nth-child(${next + 1}) input`);
         if (sel && !sel.disabled) sel.focus();
       }
     } else {
-      // 즉시 저장 (오답 유지 상태로 user 갱신)
+      // 즉시 저장 (틀린 채로 user 만 갱신)
       entry.updatedAt = new Date().toISOString();
       saveResult(entry);
     }
