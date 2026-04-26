@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#7ED9C8" />
+  <title>사칙연산 놀이터 🐰</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;700&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-screen="home">
+  <main class="app">
+
+    <!-- ============ 홈 ============ -->
+    <section id="home" class="screen">
+      <header class="hero">
+        <div class="hero-emoji" aria-hidden="true">🐰✏️</div>
+        <h1>사칙연산 놀이터</h1>
+        <p class="hero-sub">오늘도 신나게 풀어보자!</p>
+      </header>
+
+      <div class="card">
+        <h2 class="card-title">1. 어떤 연산을 풀까?</h2>
+        <p class="hint">여러 개 골라도 돼요</p>
+        <div class="op-grid" id="opGrid">
+          <button type="button" class="op-card" data-op="+" aria-pressed="true">
+            <span class="op-symbol">+</span>
+            <span class="op-name">더하기</span>
+          </button>
+          <button type="button" class="op-card" data-op="-" aria-pressed="false">
+            <span class="op-symbol">−</span>
+            <span class="op-name">빼기</span>
+          </button>
+          <button type="button" class="op-card" data-op="*" aria-pressed="false">
+            <span class="op-symbol">×</span>
+            <span class="op-name">곱하기</span>
+          </button>
+          <button type="button" class="op-card" data-op="/" aria-pressed="false">
+            <span class="op-symbol">÷</span>
+            <span class="op-name">나누기</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">2. 첫째 수의 크기</h2>
+        <div class="chip-row" id="r1Row" role="radiogroup" aria-label="첫째 수 범위">
+          <button type="button" class="chip" data-r="10" aria-pressed="true">0~10</button>
+          <button type="button" class="chip" data-r="100" aria-pressed="false">0~100</button>
+          <button type="button" class="chip" data-r="1000" aria-pressed="false">0~1000</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">3. 둘째 수의 크기</h2>
+        <div class="chip-row" id="r2Row" role="radiogroup" aria-label="둘째 수 범위">
+          <button type="button" class="chip" data-r="10" aria-pressed="true">0~10</button>
+          <button type="button" class="chip" data-r="100" aria-pressed="false">0~100</button>
+          <button type="button" class="chip" data-r="1000" aria-pressed="false">0~1000</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">4. 문제 수</h2>
+        <div class="chip-row" id="countRow" role="radiogroup" aria-label="문제 수">
+          <button type="button" class="chip" data-c="10" aria-pressed="true">10</button>
+          <button type="button" class="chip" data-c="20" aria-pressed="false">20</button>
+          <button type="button" class="chip" data-c="30" aria-pressed="false">30</button>
+          <button type="button" class="chip" data-c="40" aria-pressed="false">40</button>
+          <button type="button" class="chip" data-c="50" aria-pressed="false">50</button>
+          <button type="button" class="chip" data-c="60" aria-pressed="false">60</button>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button id="startBtn" type="button" class="primary big">시작하기 🚀</button>
+        <button id="goHistoryBtn" type="button" class="ghost">기록 보기 📒</button>
+      </div>
+    </section>
+
+    <!-- ============ 퀴즈 ============ -->
+    <section id="quiz" class="screen">
+      <header class="quiz-header">
+        <button id="quizBackBtn" type="button" class="icon-btn" aria-label="홈으로">🏠</button>
+        <div class="progress" id="progress">0 / 0 답 적음</div>
+        <button id="submitBtn" type="button" class="primary">채점하기 ✅</button>
+      </header>
+      <ol id="problemList" class="problem-list"></ol>
+      <div class="action-row">
+        <button id="submitBtn2" type="button" class="primary big">채점하기 ✅</button>
+      </div>
+    </section>
+
+    <!-- ============ 결과 ============ -->
+    <section id="result" class="screen">
+      <div class="confetti" id="confetti" aria-hidden="true"></div>
+      <header class="result-header">
+        <h2 id="scoreTitle">점수</h2>
+        <p id="scoreSub" class="hint"></p>
+        <p id="editableNote" class="hint editable-note" hidden>오늘 푼 문제예요. 틀린 문제 입력칸을 다시 고치면 바로 채점돼요! ⭐</p>
+      </header>
+      <ol id="resultList" class="problem-list result"></ol>
+      <div class="action-row">
+        <button id="retryBtn" type="button" class="primary">다시 풀기 🔁</button>
+        <button id="resultHomeBtn" type="button" class="ghost">홈으로 🏠</button>
+        <button id="resultHistoryBtn" type="button" class="ghost">기록 보기 📒</button>
+      </div>
+    </section>
+
+    <!-- ============ 기록 ============ -->
+    <section id="history" class="screen">
+      <header class="quiz-header">
+        <button id="historyBackBtn" type="button" class="icon-btn" aria-label="홈으로">🏠</button>
+        <h2 class="screen-title">나의 기록 📒</h2>
+        <button id="clearHistoryBtn" type="button" class="ghost small">전체 삭제</button>
+      </header>
+
+      <div class="card calendar-card">
+        <div class="cal-header">
+          <button id="calPrev" type="button" class="icon-btn" aria-label="이전 달">‹</button>
+          <div id="calTitle" class="cal-title">2026.04</div>
+          <button id="calNext" type="button" class="icon-btn" aria-label="다음 달">›</button>
+          <button id="calToday" type="button" class="ghost small">오늘</button>
+        </div>
+        <div class="cal-weekdays">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div id="calGrid" class="cal-grid"></div>
+        <div id="calLegend" class="cal-legend">
+          <span class="dot dot-1"></span> 1회
+          <span class="dot dot-2"></span> 2회
+          <span class="dot dot-3"></span> 3회+
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hist-filter">
+          <span id="histFilterLabel">전체 회차</span>
+          <button id="histClearFilter" type="button" class="ghost small" hidden>필터 해제</button>
+        </div>
+        <ul id="historyList" class="history-list"></ul>
+        <p id="historyEmpty" class="hint" hidden>아직 기록이 없어요. 한 회차 풀어볼까요? 🐤</p>
+      </div>
+    </section>
+
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
