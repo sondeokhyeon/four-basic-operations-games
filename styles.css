@@ -310,7 +310,11 @@ body[data-screen="history"] #history { display: block; }
 }
 
 /* ===== Result list (extends .problem) ===== */
-.problem-list.result .problem { padding-right: 12px; }
+.problem-list.result .problem {
+  padding-right: 12px;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
 .problem.correct {
   background: #EFFBF5;
   border: 2px solid #BDEAD6;
@@ -327,14 +331,42 @@ body[data-screen="history"] #history { display: block; }
   font-size: 22px;
   margin-left: 4px;
 }
+/* 오답일 때 "내 답 / 정답" 을 새 줄에 칩으로 분리 표시 */
 .problem .answer-shown {
-  font-family: 'Gaegu';
-  font-size: 18px;
-  color: var(--peach-deep);
-  margin-left: 6px;
-  white-space: nowrap;
+  flex: 1 0 100%;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  align-items: center;
 }
-.problem .answer-shown b { color: var(--ink); }
+.ans-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Noto Sans KR', sans-serif;
+}
+.ans-pill .ans-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.ans-pill b {
+  font-family: 'Gaegu';
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+}
+.ans-mine {
+  background: #FFEDE3;
+  color: #B85A36;
+}
+.ans-correct {
+  background: #E6F7EF;
+  color: #2F8E68;
+}
 
 /* ===== Result header ===== */
 .result-header { text-align: center; padding: 12px 0; }

@@ -424,7 +424,10 @@
       const badge = p.correct ? (p.fixed ? '⭐' : '✅') : '🐤';
       const userShown = (p.user === '' || p.user == null) ? '?' : p.user;
       const showAnswer = !p.correct
-        ? `<span class="answer-shown">내 답: <b>${userShown}</b> · 정답: <b>${p.answer}</b></span>`
+        ? `<div class="answer-shown">
+             <span class="ans-pill ans-mine"><span class="ans-label">내 답</span><b>${userShown}</b></span>
+             <span class="ans-pill ans-correct"><span class="ans-label">정답</span><b>${p.answer}</b></span>
+           </div>`
         : '';
       li.innerHTML = `
         <span class="num">${i + 1}.</span>
