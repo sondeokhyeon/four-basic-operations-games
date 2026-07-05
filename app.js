@@ -692,6 +692,26 @@
     });
   }
 
+  // ===== Pull-to-refresh 폴백 =====
+  // CSS overscroll-behavior 는 Chromium 63(2017말) 미만에서 미지원 —
+  // 예: 업데이트 안 된 갤럭시 S9(삼성 인터넷 7.x = Chromium 59), 구형 LG 태블릿.
+  // 문서 최상단에서 아래로 당기는 제스처만 차단해 그런 기기에서도 기본 새로고침을 막는다.
+  function preventPullToRefresh() {
+    let startY = 0;
+    let watching = false; // 제스처 시작 시점에 최상단이었는지
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length !== 1) { watching = false; return; }
+      startY = e.touches[0].clientY;
+      const top = window.scrollY || document.documentElement.scrollTop || 0;
+      watching = top <= 0;
+    }, { passive: true });
+    document.addEventListener('touchmove', (e) => {
+      if (!watching) return;
+      const dy = e.touches[0].clientY - startY;
+      if (dy > 0 && e.cancelable) e.preventDefault(); // 최상단에서 아래로 당김 = PTR
+    }, { passive: false });
+  }
+
   // ===== Init =====
   document.addEventListener('DOMContentLoaded', () => {
     const saved = loadSettings();
@@ -699,5 +719,6 @@
     setupHome();
     applySettingsToUI();
     bindGlobal();
+    preventPullToRefresh();
   });
 })();
