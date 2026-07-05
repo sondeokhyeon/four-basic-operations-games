@@ -22,6 +22,8 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
+/* 모바일 브라우저 기본 당겨서 새로고침(pull-to-refresh) 및 세로 오버스크롤 바운스 방지 */
+html { overscroll-behavior-y: none; }
 body {
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-size: 16px;
